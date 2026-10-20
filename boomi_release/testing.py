@@ -57,8 +57,8 @@ def _wait_for(fetch, timeout, poll=5):
 def returned_document(client, execution_id, timeout=180):
     """Download the first document that reached a Return Documents step, or None.
 
-    Execution details are uploaded by the runtime after the execution reports COMPLETE — from a
-    local runtime this can take a minute or two — so wait for the records to appear.
+    Execution details can become available shortly after the execution reports COMPLETE, so wait
+    for the records to appear.
     """
     connectors = _wait_for(lambda: client.query("ExecutionConnector", all_of(
         eq("executionId", execution_id), eq("connectorType", "return"))), timeout)
@@ -70,7 +70,7 @@ def returned_document(client, execution_id, timeout=180):
         return None
 
     def request_download():
-        # Until the document itself is uploaded the API answers 400 "Invalid Id".
+        # The document may not be retrievable immediately (the API answers 400); retry until it is.
         resp = client.post("ConnectorDocument", {"genericConnectorRecordId": records[0]["id"]}, allow=(400,))
         return resp.json().get("url") if resp.status_code != 400 else None
 

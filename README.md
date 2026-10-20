@@ -181,8 +181,8 @@ same commands work from any CI system.
 - Lint inspects the top-level packaged component, not every referenced component.
 - Environment configuration covers Dynamic Process Properties; connection and other extension types can
   be added in `boomi_release/deploy.py`.
-- Execution details from a runtime can take a minute or two to become available; the test stage waits up
-  to three minutes per harness.
+- Test-harness results can take a short time to become retrievable after an execution completes; the test
+  stage waits up to three minutes per harness.
 
 ## License
 

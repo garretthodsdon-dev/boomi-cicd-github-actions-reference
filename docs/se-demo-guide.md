@@ -103,16 +103,14 @@ each environment's extensions (Process Properties) in Boomi's runtime management
 ## 7. Gotchas (learned the hard way)
 
 - **The DEV runtime must be online**, or deploys and tests fail.
-- **Execution details lag.** After a harness completes, its Return Documents output can take a minute or
-  two to be retrievable from a local runtime; the test stage waits up to three minutes.
+- **Test results may take a moment.** In our testing, a harness's Return Documents output sometimes wasn't
+  retrievable until a minute or two after the execution completed; the test stage waits up to three minutes.
 - **Bot-opened PRs:** pull requests opened by `GITHUB_TOKEN` don't run `pull_request` workflows normally;
   the Release Request starts validation itself and deletes the parked runs.
 - **GitHub plan limits:** required reviewers and branch protection aren't available on free private
   repos — narrate the gate or use a public/Enterprise repo.
-- **Extension values appear only after deployment.** Values for properties that no deployed process
-  declares are stored but hidden until a process declaring them is deployed.
-- **Boomi's audit log** records executions and extension edits; deployments are best shown from
-  deployment history (which carries the pipeline's notes).
+- **Configure extensions after the first deployment.** Extension values are tied to properties that a
+  deployed process declares — deploy the release once before checking values in the Boomi UI.
 - **Use a dedicated API user** — otherwise every Boomi record shows your own name.
 - **Connector licenses:** deploying processes with connectors to several environments consumes licenses;
   the samples are connector-free for this reason.

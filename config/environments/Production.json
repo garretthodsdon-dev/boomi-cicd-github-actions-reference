@@ -1,0 +1,6 @@
+{
+  "properties": {
+    "DPP_ENVIRONMENT_LABEL": "PROD",
+    "DPP_ERP_ACK_ENDPOINT": "https://erp.example.com/api/order-ack"
+  }
+}

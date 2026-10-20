@@ -1,0 +1,41 @@
+{
+  "_about": "XPath rules evaluated against the XML of each packaged component version. 'bns' = http://api.platform.boomi.com/. Process content uses no namespace. A rule fires when its XPath matches anything.",
+  "rules": [
+    {
+      "id": "DEFAULT_COMPONENT_NAME",
+      "priority": "MINOR",
+      "description": "Component still has a default name starting with \"New \"",
+      "xpath": "/bns:Component[starts-with(@name, 'New ')]"
+    },
+    {
+      "id": "PROCESS_DESCRIPTION_MISSING",
+      "priority": "MINOR",
+      "description": "Process has no description",
+      "xpath": "/bns:Component[@type='process'][not(normalize-space(bns:description))]"
+    },
+    {
+      "id": "STOP_WITHOUT_CONTINUE",
+      "priority": "MAJOR",
+      "description": "Stop step without an explicit continue setting",
+      "xpath": "//shape[@shapetype='stop']/configuration/stop[not(@continue)]"
+    },
+    {
+      "id": "EXCEPTION_WITHOUT_MESSAGE",
+      "priority": "MAJOR",
+      "description": "Exception step has no error message",
+      "xpath": "//shape[@shapetype='exception']/configuration/exception[not(normalize-space(exMessage))]"
+    },
+    {
+      "id": "DECISION_PATH_UNWIRED",
+      "priority": "MAJOR",
+      "description": "Decision step has an unconnected path",
+      "xpath": "//shape[@shapetype='decision']/dragpoints/dragpoint[@toShape='unset' or not(@toShape)]"
+    },
+    {
+      "id": "CUSTOM_SCRIPT",
+      "priority": "INFO",
+      "description": "Process contains custom scripting — review for maintainability",
+      "xpath": "//dataprocessscript"
+    }
+  ]
+}

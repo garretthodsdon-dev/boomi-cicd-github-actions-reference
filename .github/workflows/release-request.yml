@@ -1,0 +1,83 @@
+name: Boomi Release Request
+
+# Finds the newest Packaged Component of every deployable component in BOOMI_FOLDER and proposes
+# it as a release: an updated release/release.json opened as a pull request on release/next.
+# Merging the PR is the release approval and triggers "Boomi Release to DEV".
+on:
+  workflow_dispatch:
+  # Fire from Boomi (or any system) when something is packaged:
+  #   POST https://api.github.com/repos/{owner}/{repo}/dispatches  {"event_type": "boomi-package-created"}
+  repository_dispatch:
+    types: [boomi-package-created]
+  # Optional safety net — uncomment to also check for new packages on a schedule.
+  # schedule:
+  #   - cron: '0 13 * * 1-5'
+
+concurrency:
+  group: boomi-release-request
+  cancel-in-progress: false
+
+jobs:
+  request:
+    name: Propose release
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write        # push release/next
+      pull-requests: write   # open / update the release PR
+      actions: write         # start validation on release/next
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - run: pip install -r requirements.txt
+
+      - name: Discover packages
+        env:
+          BOOMI_ACCOUNT_ID: ${{ secrets.BOOMI_ACCOUNT_ID }}
+          BOOMI_USERNAME: ${{ secrets.BOOMI_USERNAME }}
+          BOOMI_API_TOKEN: ${{ secrets.BOOMI_API_TOKEN }}
+          BOOMI_FOLDER: ${{ vars.BOOMI_FOLDER }}
+        run: python -m boomi_release discover --folder "$BOOMI_FOLDER" --out release/release.json
+
+      - name: Open or update release pull request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_BRANCH: release/next
+        run: |
+          if git diff --quiet -- release/release.json; then
+            echo "No new packages — release.json matches main." | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          git show HEAD:release/release.json > "$RUNNER_TEMP/old.json" 2>/dev/null || echo '{}' > "$RUNNER_TEMP/old.json"
+          python -m boomi_release diff "$RUNNER_TEMP/old.json" release/release.json > "$RUNNER_TEMP/pr-body.md"
+          cat "$RUNNER_TEMP/pr-body.md" >> "$GITHUB_STEP_SUMMARY"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$RELEASE_BRANCH"
+          git add release/release.json
+          git commit -m "release: Boomi release request $(date -u +%Y.%m.%d-%H%M)"
+          git push --force origin "$RELEASE_BRANCH"
+
+          if [ "$(gh pr view "$RELEASE_BRANCH" --json state -q .state 2>/dev/null)" = "OPEN" ]; then
+            gh pr edit "$RELEASE_BRANCH" --body-file "$RUNNER_TEMP/pr-body.md"
+          else
+            gh pr create --base main --head "$RELEASE_BRANCH" \
+              --title "Boomi release $(date -u +%Y.%m.%d)" --body-file "$RUNNER_TEMP/pr-body.md"
+          fi
+
+          # PRs opened with GITHUB_TOKEN don't run pull_request workflows (they park as
+          # "action_required"), so start validation explicitly and remove the parked runs.
+          gh workflow run validate.yml --ref "$RELEASE_BRANCH"
+          for _ in 1 2 3 4 5 6; do
+            sleep 5
+            for id in $(gh run list --workflow validate.yml --branch "$RELEASE_BRANCH" --event pull_request \
+                          --status action_required --json databaseId -q '.[].databaseId'); do
+              gh run delete "$id"
+            done
+          done

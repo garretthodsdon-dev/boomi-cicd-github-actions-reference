@@ -1,0 +1,71 @@
+name: Boomi Promote
+
+# DEV → QA → PROD. Promotes the exact packages running in the previous environment (same package
+# IDs, nothing rebuilt), refuses to skip a stage, applies the target environment's configuration,
+# and records the promotion (who, change ticket, versions) as a GitHub Release.
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Promote to'
+        type: choice
+        options: [QA, PROD]
+        default: QA
+      change_ticket:
+        description: 'Change ticket (required for PROD), e.g. CHG0012345'
+        required: false
+        default: ''
+      reason:
+        description: 'Reason / release note'
+        required: false
+        default: ''
+
+concurrency:
+  group: boomi-deployments
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    name: Promote to ${{ inputs.target }}
+    runs-on: ubuntu-24.04
+    if: ${{ github.ref == 'refs/heads/main' }}
+    # Add required reviewers to the GitHub environment for a second-person approval before this
+    # job starts (private repositories need GitHub Enterprise for required reviewers).
+    environment: ${{ inputs.target == 'PROD' && 'prod' || 'qa' }}
+    permissions:
+      contents: write   # tag + GitHub Release
+    env:
+      BOOMI_ACCOUNT_ID: ${{ secrets.BOOMI_ACCOUNT_ID }}
+      BOOMI_USERNAME: ${{ secrets.BOOMI_USERNAME }}
+      BOOMI_API_TOKEN: ${{ secrets.BOOMI_API_TOKEN }}
+      TARGET: ${{ inputs.target }}
+      SOURCE_ENV: ${{ inputs.target == 'PROD' && vars.BOOMI_ENV_QA || vars.BOOMI_ENV_DEV }}
+      TARGET_ENV: ${{ inputs.target == 'PROD' && vars.BOOMI_ENV_PROD || vars.BOOMI_ENV_QA }}
+      TICKET: ${{ inputs.change_ticket }}
+      REASON: ${{ inputs.reason }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+
+      - name: Promote
+        run: |
+          if [ -z "$SOURCE_ENV" ] || [ -z "$TARGET_ENV" ]; then
+            echo "::error::Set BOOMI_ENV_DEV, BOOMI_ENV_QA and BOOMI_ENV_PROD repository variables."; exit 1
+          fi
+          python -m boomi_release promote --from "$SOURCE_ENV" --to "$TARGET_ENV" --label "$TARGET" \
+            --ticket "$TICKET" --actor "$GITHUB_ACTOR" --notes-out promotion-notes.md
+
+      - name: Record GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          stage=$(echo "$TARGET" | tr 'A-Z' 'a-z')
+          tag="${stage}-$(date -u +%Y.%m.%d)-r${GITHUB_RUN_NUMBER}"
+          { if [ -n "$REASON" ]; then printf '**Reason:** %s\n\n' "$REASON"; fi; cat promotion-notes.md; } > release-notes.md
+          prerelease=$([ "$stage" = "prod" ] && echo "" || echo "--prerelease")
+          gh release create "$tag" --target "$GITHUB_SHA" --title "$TARGET $(date -u +%Y-%m-%d) (run ${GITHUB_RUN_NUMBER})" \
+            --notes-file release-notes.md $prerelease
+          echo "Recorded GitHub Release **$tag**" >> "$GITHUB_STEP_SUMMARY"

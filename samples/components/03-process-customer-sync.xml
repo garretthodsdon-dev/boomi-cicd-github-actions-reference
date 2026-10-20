@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bns:Component xmlns:bns="http://api.platform.boomi.com/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" componentId="" folderId="{{FOLDER_ID}}" name="CICD Demo - Customer Sync" type="process" version="">
+  <bns:encryptedValues/>
+  <bns:description>Scheduled customer master sync (simulated). Connector-free demo process promoted by the GitHub Actions CI/CD pipeline.</bns:description>
+  <bns:object>
+    <process allowSimultaneous="false" enableUserLog="false" processLogOnErrorOnly="false" purgeDataImmediately="false" stopProcessingIfZeroDocuments="true" updateRunDates="true" workload="general">
+      <shapes>
+        <shape image="start" name="shape1" shapetype="start" userlabel="" x="48.0" y="46.0">
+          <configuration>
+            <noaction/>
+          </configuration>
+          <dragpoints>
+            <dragpoint name="shape1.dragpoint1" toShape="shape2" x="224.0" y="56.0"/>
+          </dragpoints>
+        </shape>
+        <shape image="message_icon" name="shape2" shapetype="message" userlabel="Build Customer Record" x="240.0" y="48.0">
+          <configuration>
+            <message combined="false">
+              <msgTxt>'{"customerId":"C-2001","name":"Acme Inc","segment":"Enterprise","syncedAt":"'{1}'"}'</msgTxt>
+              <msgParameters>
+                <parametervalue key="0" valueType="date">
+                  <dateparameter dateparametertype="current" datetimemask="yyyy-MM-dd'T'HH:mm:ss'Z'"/>
+                </parametervalue>
+              </msgParameters>
+            </message>
+          </configuration>
+          <dragpoints>
+            <dragpoint name="shape2.dragpoint1" toShape="shape3" x="449.0" y="56.0"/>
+          </dragpoints>
+        </shape>
+        <shape image="notify_icon" name="shape3" shapetype="notify" userlabel="Log Customer Record" x="465.0" y="48.0">
+          <configuration>
+            <notify disableEvent="true" enableUserLog="false" perExecution="false" title="">
+              <notifyMessage>Customer synced: {1}</notifyMessage>
+              <notifyMessageLevel>INFO</notifyMessageLevel>
+              <notifyParameters>
+                <parametervalue key="0" valueType="current"/>
+              </notifyParameters>
+            </notify>
+          </configuration>
+          <dragpoints>
+            <dragpoint name="shape3.dragpoint1" toShape="shape4" x="674.0" y="56.0"/>
+          </dragpoints>
+        </shape>
+        <shape image="stop_icon" name="shape4" shapetype="stop" x="690.0" y="48.0">
+          <configuration>
+            <stop continue="true"/>
+          </configuration>
+          <dragpoints/>
+        </shape>
+      </shapes>
+    </process>
+  </bns:object>
+  <bns:processOverrides/>
+</bns:Component>

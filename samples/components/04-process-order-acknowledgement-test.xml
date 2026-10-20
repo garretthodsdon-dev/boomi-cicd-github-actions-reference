@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bns:Component xmlns:bns="http://api.platform.boomi.com/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" componentId="" folderId="{{FOLDER_ID}}" name="CICD Demo - Order Acknowledgement - Test" type="process" version="">
+  <bns:encryptedValues/>
+  <bns:description>Automated test harness for CICD Demo - Order Acknowledgement. Runs the process, asserts status = ACKNOWLEDGED, returns JUnit XML on pass and throws on failure. Matched to the process by the " - Test" name suffix.</bns:description>
+  <bns:object>
+    <process allowSimultaneous="false" enableUserLog="false" processLogOnErrorOnly="false" purgeDataImmediately="false" stopProcessingIfZeroDocuments="true" updateRunDates="false" workload="general">
+      <shapes>
+        <shape image="start" name="shape1" shapetype="start" userlabel="" x="48.0" y="46.0">
+          <configuration>
+            <noaction/>
+          </configuration>
+          <dragpoints>
+            <dragpoint name="shape1.dragpoint1" toShape="shape2" x="224.0" y="56.0"/>
+          </dragpoints>
+        </shape>
+        <shape image="processcall_icon" name="shape2" shapetype="processcall" userlabel="Run Process Under Test" x="240.0" y="48.0">
+          <configuration>
+            <processcall abort="true" processId="{{ORDER_ACK_ID}}" wait="true">
+              <parameters/>
+              <returnpaths>
+                <returnpaths childShapeName="shape4" returnLabel="Order Acknowledged"/>
+              </returnpaths>
+            </processcall>
+          </configuration>
+          <dragpoints>
+            <dragpoint identifier="shape4" name="shape2.dragpoint1" text="Order Acknowledged" toShape="shape3" x="449.0" y="56.0"/>
+          </dragpoints>
+        </shape>
+        <shape image="decision_icon" name="shape3" shapetype="decision" userlabel="Assert Status Is ACKNOWLEDGED" x="465.0" y="48.0">
+          <configuration>
+            <decision comparison="equals" name="Assert Status Is ACKNOWLEDGED">
+              <decisionvalue valueType="profile">
+                <profileelement elementId="4" elementName="status (Root/Object/status)" profileId="{{PROFILE_ID}}" profileType="profile.json"/>
+              </decisionvalue>
+              <decisionvalue valueType="static">
+                <staticparameter staticproperty="ACKNOWLEDGED"/>
+              </decisionvalue>
+            </decision>
+          </configuration>
+          <dragpoints>
+            <dragpoint identifier="true" name="shape3.dragpoint1" text="True" toShape="shape4" x="674.0" y="56.0"/>
+            <dragpoint identifier="false" name="shape3.dragpoint2" text="False" toShape="shape6" x="674.0" y="216.0"/>
+          </dragpoints>
+        </shape>
+        <shape image="message_icon" name="shape4" shapetype="message" userlabel="Build JUnit Result" x="690.0" y="48.0">
+          <configuration>
+            <message combined="false">
+              <msgTxt>&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+&lt;testsuite name="CICD Demo - Order Acknowledgement" tests="2" failures="0" errors="0"&gt;
+  &lt;testcase classname="CICDDemo.OrderAcknowledgement" name="returns an acknowledgement document"/&gt;
+  &lt;testcase classname="CICDDemo.OrderAcknowledgement" name="status is ACKNOWLEDGED (order {1}, release {2})"/&gt;
+&lt;/testsuite&gt;</msgTxt>
+              <msgParameters>
+                <parametervalue key="0" valueType="profile">
+                  <profileelement elementId="3" elementName="orderId (Root/Object/orderId)" profileId="{{PROFILE_ID}}" profileType="profile.json"/>
+                </parametervalue>
+                <parametervalue key="1" valueType="profile">
+                  <profileelement elementId="6" elementName="releaseVersion (Root/Object/releaseVersion)" profileId="{{PROFILE_ID}}" profileType="profile.json"/>
+                </parametervalue>
+              </msgParameters>
+            </message>
+          </configuration>
+          <dragpoints>
+            <dragpoint name="shape4.dragpoint1" toShape="shape5" x="899.0" y="56.0"/>
+          </dragpoints>
+        </shape>
+        <shape image="returndocuments_icon" name="shape5" shapetype="returndocuments" userlabel="JUnit Results" x="915.0" y="48.0">
+          <configuration>
+            <returndocuments label="JUnit Results"/>
+          </configuration>
+          <dragpoints/>
+        </shape>
+        <shape image="exception_icon" name="shape6" shapetype="exception" userlabel="Test Failed" x="690.0" y="208.0">
+          <configuration>
+            <exception stopProcessReturnSingleDoc="false" stopsingledoc="false" title="Test Failed">
+              <exMessage>Order acknowledgement test failed: expected status ACKNOWLEDGED but got {1}</exMessage>
+              <exParameters>
+                <parametervalue key="0" usesEncryption="false" valueType="profile">
+                  <profileelement elementId="4" elementName="status (Root/Object/status)" profileId="{{PROFILE_ID}}" profileType="profile.json"/>
+                </parametervalue>
+              </exParameters>
+            </exception>
+          </configuration>
+          <dragpoints/>
+        </shape>
+      </shapes>
+    </process>
+  </bns:object>
+  <bns:processOverrides/>
+</bns:Component>

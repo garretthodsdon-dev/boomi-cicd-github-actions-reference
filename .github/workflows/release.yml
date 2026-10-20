@@ -1,0 +1,102 @@
+name: Boomi Release to DEV
+
+# Runs when a release PR is merged: lint → deploy DEV (+ DEV configuration) → automated tests.
+# Failed tests roll DEV back automatically. QA and PROD follow via "Boomi Promote".
+on:
+  push:
+    branches: [main]
+    paths: [release/release.json]
+  workflow_dispatch:
+
+concurrency:
+  group: boomi-deployments
+  cancel-in-progress: false
+
+env:
+  BOOMI_ACCOUNT_ID: ${{ secrets.BOOMI_ACCOUNT_ID }}
+  BOOMI_USERNAME: ${{ secrets.BOOMI_USERNAME }}
+  BOOMI_API_TOKEN: ${{ secrets.BOOMI_API_TOKEN }}
+  DEV_ENV: ${{ vars.BOOMI_ENV_DEV }}
+
+jobs:
+  lint:
+    name: Lint Boomi components
+    runs-on: ubuntu-24.04
+    if: ${{ vars.BOOMI_ENV_DEV != '' }}   # skip cleanly until the repository is configured
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - name: Lint packaged components
+        env:
+          FAIL_ON: ${{ vars.BOOMI_LINT_FAIL_ON }}
+        run: python -m boomi_release lint --fail-on "$FAIL_ON"
+
+  deploy-dev:
+    name: Deploy to DEV
+    runs-on: ubuntu-24.04
+    needs: lint
+    environment: dev
+    outputs:
+      deployed: ${{ steps.deploy.outputs.deployed }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - name: Deploy release and DEV configuration
+        id: deploy
+        run: python -m boomi_release deploy --env "$DEV_ENV" --label DEV
+
+  test-dev:
+    name: Automated tests (DEV)
+    runs-on: ubuntu-24.04
+    needs: deploy-dev
+    if: ${{ vars.BOOMI_TEST_RUNTIME != '' }}
+    permissions:
+      contents: read
+      checks: write   # publish JUnit results as a check
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+
+      - name: Run test harnesses
+        env:
+          TEST_RUNTIME: ${{ vars.BOOMI_TEST_RUNTIME }}
+        run: python -m boomi_release test --env "$DEV_ENV" --runtime "$TEST_RUNTIME"
+
+      - name: Publish test report
+        if: always()
+        uses: mikepenz/action-junit-report@v6
+        with:
+          report_paths: test-*.xml
+          check_name: Boomi automated tests
+          detailed_summary: true
+          include_passed: true
+          require_tests: false
+
+      # A failed release never stays live: restore the previous packages in DEV.
+      - name: Roll back DEV after failed tests
+        if: ${{ failure() && needs.deploy-dev.outputs.deployed != '' }}
+        env:
+          DEPLOYED: ${{ needs.deploy-dev.outputs.deployed }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          python -m boomi_release rollback --env "$DEV_ENV" --label DEV --component-ids "$DEPLOYED" \
+            --reason "automated tests failed in run $RUN_NUMBER" --actor "github-actions (auto)"
+
+  ready:
+    name: Ready to promote
+    runs-on: ubuntu-24.04
+    needs: [deploy-dev, test-dev]
+    if: ${{ always() && needs.deploy-dev.result == 'success' && (needs.test-dev.result == 'success' || needs.test-dev.result == 'skipped') }}
+    steps:
+      - run: |
+          echo "### ✅ Release is live and tested in DEV" >> "$GITHUB_STEP_SUMMARY"
+          echo "Next: **Actions → Boomi Promote → QA**, then **PROD** with a change ticket." >> "$GITHUB_STEP_SUMMARY"

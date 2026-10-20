@@ -1,0 +1,49 @@
+name: Boomi Rollback
+
+# One-click rollback: restores, per component, what ran before the current package was
+# introduced — read from Boomi's own deployment history. No rebuild, no Git change needed.
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to roll back'
+        type: choice
+        options: [DEV, QA, PROD]
+        default: QA
+      component:
+        description: 'Component name (blank = every component in the release)'
+        required: false
+        default: ''
+      reason:
+        description: 'Reason (recorded on the Boomi deployment)'
+        required: true
+
+concurrency:
+  group: boomi-deployments
+  cancel-in-progress: false
+
+jobs:
+  rollback:
+    name: Roll back ${{ inputs.environment }}
+    runs-on: ubuntu-24.04
+    environment: ${{ inputs.environment == 'PROD' && 'prod' || (inputs.environment == 'QA' && 'qa' || 'dev') }}
+    env:
+      BOOMI_ACCOUNT_ID: ${{ secrets.BOOMI_ACCOUNT_ID }}
+      BOOMI_USERNAME: ${{ secrets.BOOMI_USERNAME }}
+      BOOMI_API_TOKEN: ${{ secrets.BOOMI_API_TOKEN }}
+      LABEL: ${{ inputs.environment }}
+      TARGET_ENV: ${{ inputs.environment == 'PROD' && vars.BOOMI_ENV_PROD || (inputs.environment == 'QA' && vars.BOOMI_ENV_QA || vars.BOOMI_ENV_DEV) }}
+      COMPONENT: ${{ inputs.component }}
+      REASON: ${{ inputs.reason }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+
+      - name: Roll back
+        run: |
+          if [ -z "$TARGET_ENV" ]; then echo "::error::No Boomi environment configured for $LABEL"; exit 1; fi
+          python -m boomi_release rollback --env "$TARGET_ENV" --label "$LABEL" --component "$COMPONENT" \
+            --reason "$REASON" --actor "$GITHUB_ACTOR"

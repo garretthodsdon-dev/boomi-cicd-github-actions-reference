@@ -103,6 +103,18 @@ protection with required pull request reviews on `main`).
    names and set your values (see below).
 7. **Run** *Actions → Boomi Release Request* to open your first release pull request.
 
+## Try it with sample components
+
+`samples/components/` contains connector-free sample processes (an order acknowledgement, a customer
+sync, and an automated test for the order acknowledgement) that exercise the whole flow, including
+environment-specific configuration. Create them in a Boomi folder and package them at 1.0:
+
+```bash
+python -m boomi_release samples --folder-id <Boomi folder ID> --package 1.0
+```
+
+Point `BOOMI_FOLDER` at that folder, run *Boomi Release Request*, merge, and promote.
+
 ## Day-to-day flow
 
 1. Build and test in Boomi, then **create a Packaged Component** with a version and notes.
